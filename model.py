@@ -4,10 +4,31 @@ from torchvision import ops
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.nn as nn
+import cv2
 
 from utils import *
 
 # -------------------- Models -----------------------
+
+class VarianceGenerator(nn.Module):
+    def __init__(self, img_size, hidden_dim=128):
+        super().__init__()
+        
+        self.conv1 = nn.Conv2d(img_size, hidden_dim, kernel_size=(4, 4))
+        self.fc1 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, 1)
+        
+        
+    def forward(self, RoI_Feature):
+        out = self.conv1(RoI_Feature)
+        out = F.relu(out)
+        
+        out = self.fc1(out)
+        out = F.relu(out)
+        
+        out = self.fc2(out)
+        
+        return out
 
 class FeatureExtractor(nn.Module):
     def __init__(self):
@@ -84,6 +105,8 @@ class RegionProposalNetwork(nn.Module):
         self.feature_extractor = FeatureExtractor()
         self.proposal_module = ProposalModule(out_channels, n_anchors=self.n_anc_boxes)
         
+        self.variance_generator = VarianceGenerator(img_size[0])
+        
     def forward(self, images, gt_bboxes, gt_classes):
         batch_size = images.size(dim=0)
         feature_map = self.feature_extractor(images)
@@ -103,6 +126,8 @@ class RegionProposalNetwork(nn.Module):
         # pass through the proposal module
         conf_scores_pos, conf_scores_neg, offsets_pos, proposals = self.proposal_module(feature_map, positive_anc_ind, \
                                                                                         negative_anc_ind, positive_anc_coords)
+        
+        
         
         cls_loss = calc_cls_loss(conf_scores_pos, conf_scores_neg, batch_size)
         reg_loss = calc_bbox_reg_loss(GT_offsets, offsets_pos, batch_size)
