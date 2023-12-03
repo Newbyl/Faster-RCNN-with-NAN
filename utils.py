@@ -273,7 +273,7 @@ def get_req_anchors(anc_boxes_all, gt_bboxes_all, gt_classes_all, pos_thresh=0.7
 def display_img(img_data, fig, axes):
     for i, img in enumerate(img_data):
         if type(img) == torch.Tensor:
-            img = img.permute(1, 2, 0).numpy()
+            img = img.cpu().permute(1, 2, 0).numpy()
         axes[i].imshow(img)
     
     return fig, axes
@@ -287,7 +287,7 @@ def display_bbox(bboxes, fig, ax, classes=None, in_format='xyxy', color='y', lin
     bboxes = ops.box_convert(bboxes, in_fmt=in_format, out_fmt='xywh')
     c = 0
     for box in bboxes:
-        x, y, w, h = box.numpy()
+        x, y, w, h = box.cpu().numpy()
         # display bounding box
         rect = patches.Rectangle((x, y), w, h, linewidth=line_width, edgecolor=color, facecolor='none')
         ax.add_patch(rect)
@@ -302,6 +302,8 @@ def display_bbox(bboxes, fig, ax, classes=None, in_format='xyxy', color='y', lin
 
 def display_grid(x_points, y_points, fig, ax, special_point=None):
     # plot grid
+    x_points = x_points.cpu()
+    y_points = y_points.cpu()
     for x in x_points:
         for y in y_points:
             ax.scatter(x, y, color="w", marker='+')
@@ -309,6 +311,6 @@ def display_grid(x_points, y_points, fig, ax, special_point=None):
     # plot a special point we want to emphasize on the grid
     if special_point:
         x, y = special_point
-        ax.scatter(x, y, color="red", marker='+')
+        ax.scatter(x.cpu(), y.cpu(), color="red", marker='+')
         
     return fig, ax
