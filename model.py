@@ -23,26 +23,6 @@ class NoisePredictor(nn.Module):
         
         return out
 
-class VarianceGenerator(nn.Module):
-    def __init__(self, img_size, hidden_dim=128):
-        super().__init__()
-        
-        self.conv1 = nn.Conv2d(img_size, hidden_dim, kernel_size=(4, 4))
-        self.fc1 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, 1)
-        
-        
-    def forward(self, RoI_Feature):
-        out = self.conv1(RoI_Feature)
-        out = F.relu(out)
-        
-        out = self.fc1(out)
-        out = F.relu(out)
-        
-        out = self.fc2(out)
-        
-        return out
-
 class FeatureExtractor(nn.Module):
     def __init__(self):
         super().__init__()
@@ -117,8 +97,6 @@ class RegionProposalNetwork(nn.Module):
         
         self.feature_extractor = FeatureExtractor()
         self.proposal_module = ProposalModule(out_channels, n_anchors=self.n_anc_boxes)
-        
-        self.variance_generator = VarianceGenerator(img_size[0])
         
     def forward(self, images, gt_bboxes, gt_classes):
         batch_size = images.size(dim=0)
