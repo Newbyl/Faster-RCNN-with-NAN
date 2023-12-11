@@ -8,6 +8,19 @@ import torch.nn as nn
 from utils import *
 
 # -------------------- Models -----------------------
+class NoisePredictor(nn.Module):
+    def __init__(self, roi_size, hidden_dim=512):
+        super.__init__()
+        self.conv1 = nn.Conv2d(roi_size, hidden_dim, kernel_size=4, padding=1)
+        self.fc1 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, 1)
+        
+    def forward(self, roi_out):
+        out = F.relu(self.conv1(roi_out))
+        out = F.relu(self.fc1(out))
+        out = self.fc2(out)
+        
+        return out
 
 class FeatureExtractor(nn.Module):
     def __init__(self):
@@ -161,6 +174,11 @@ class ClassificationModule(nn.Module):
         # define classification head
         self.cls_head = nn.Linear(hidden_dim, n_classes)
         
+        # define noise predictor
+        self.noise_predictor = NoisePredictor(out_channels)
+        
+        self.out_channels = out_channels
+        
     def forward(self, feature_map, proposals_list, gt_classes=None):
         
         if gt_classes is None:
@@ -175,6 +193,24 @@ class ClassificationModule(nn.Module):
         # flatten the output
         roi_out = roi_out.squeeze(-1).squeeze(-1)
         
+        # We get the noise variance for each roi
+        variance = self.noise_predictor(roi_out)
+        
+        # generate noise
+        noise = np.random.normal(loc=0, scale=variance, size=np.shape(roi_out))
+        noise = torch.from_numpy(noise).cuda()
+        
+        # add noise to roi_out
+        roi_out_noise = roi_out + noise
+        
+        # Concatenate roi_out with roi_out_noise along the channel dimension
+        concatenated_roi_out = torch.cat([roi_out, roi_out_noise], dim=1)
+        
+        # pass the concatenated output through the hidden network
+        out_noise = self.fc(concatenated_roi_out)
+        out_noise = F.relu(self.dropout(out_noise))
+        cls_score_noise = self.cls_head(out_noise)
+    
         # pass the output through the hidden network
         out = self.fc(roi_out)
         out = F.relu(self.dropout(out))
@@ -183,12 +219,13 @@ class ClassificationModule(nn.Module):
         cls_scores = self.cls_head(out)
         
         if mode == 'eval':
-            return cls_scores
+            return cls_scores + cls_score_noise
         
         # compute cross entropy loss
         cls_loss = F.cross_entropy(cls_scores, gt_classes.long())
+        cls_loss_noise = F.cross_entropy(cls_score_noise, gt_classes.long())
         
-        return cls_loss
+        return cls_loss + cls_loss_noise
     
 class TwoStageDetector(nn.Module):
     def __init__(self, img_size, out_size, out_channels, n_classes, roi_size):
@@ -241,7 +278,7 @@ def calc_cls_loss(conf_scores_pos, conf_scores_neg, batch_size):
     
     target = torch.cat((target_pos, target_neg))
     inputs = torch.cat((conf_scores_pos, conf_scores_neg))
-     
+    
     loss = F.binary_cross_entropy_with_logits(inputs, target, reduction='sum') * 1. / batch_size
     
     return loss
