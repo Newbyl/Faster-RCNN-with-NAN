@@ -11,7 +11,7 @@ from utils import *
 # -------------------- Models -----------------------
 class NoisePredictor(nn.Module):
     def __init__(self, roi_size, hidden_dim=512):
-        super.__init__()
+        super().__init__()
         self.conv1 = nn.Conv2d(roi_size, hidden_dim, kernel_size=4, padding=1)
         self.fc1 = nn.Linear(hidden_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, 1)
@@ -191,17 +191,24 @@ class ClassificationModule(nn.Module):
         
         # apply roi pooling on proposals followed by avg pooling
         roi_out = ops.roi_pool(feature_map, proposals_list, self.roi_size)
+        
         roi_out = self.avg_pool(roi_out)
         
         # flatten the output
         roi_out = roi_out.squeeze(-1).squeeze(-1)
-        
-        # We get the noise variance for each roi
-        variance = self.noise_predictor(roi_out)
-        
-        # generate noise
-        noise = np.random.normal(loc=0, scale=variance, size=np.shape(roi_out))
-        noise = torch.from_numpy(noise).cuda()
+
+        # numbers of RoI
+        nb_roi = roi_out.size(dim=0)
+
+        # We initialize the array which will contain all the variances of the RoI's
+        variance = []
+
+        for i in range(nb_roi):
+            variance.append(self.noise_predictor(roi_out))
+            
+            # generate noise
+            noise = np.random.normal(loc=0, scale=variance, size=np.shape(roi_out))
+            noise = torch.from_numpy(noise).cuda()
         
         # add noise to roi_out
         roi_out_noise = roi_out + noise
