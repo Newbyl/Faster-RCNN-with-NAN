@@ -203,11 +203,11 @@ class ClassificationModule(nn.Module):
         # We initialize the array which will contain all the variances of the RoI's
         variance = []
 
-        for i in range(nb_roi):
+        for roi in range(nb_roi):
             variance.append(self.noise_predictor(roi_out))
             
             # generate noise
-            noise = np.random.normal(loc=0, scale=variance, size=np.shape(roi_out))
+            noise = np.random.normal(loc=0, scale=variance[roi], size=np.shape(roi_out[0].size))
             noise = torch.from_numpy(noise).cuda()
         
         # add noise to roi_out
