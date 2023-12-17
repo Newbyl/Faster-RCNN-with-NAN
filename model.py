@@ -10,18 +10,19 @@ from utils import *
 
 # -------------------- Models -----------------------
 class NoisePredictor(nn.Module):
-    def __init__(self, roi_size, hidden_dim=512):
+    def __init__(self, roi_size=2048, hidden_dim=512):
         super().__init__()
-        self.conv1 = nn.Conv2d(roi_size, hidden_dim, kernel_size=4, padding=1)
+        self.conv1 = nn.Conv2d(roi_size, hidden_dim, kernel_size=1, padding=0)
         self.fc1 = nn.Linear(hidden_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, 1)
         
-    def forward(self, roi_out):
-        out = F.relu(self.conv1(roi_out))
-        out = F.relu(self.fc1(out))
-        out = self.fc2(out)
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = x.view(-1, 512)  # Flatten the tensor
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
         
-        return out
+        return x
 
 class FeatureExtractor(nn.Module):
     def __init__(self):
@@ -180,6 +181,9 @@ class ClassificationModule(nn.Module):
         # define noise predictor
         self.noise_predictor = NoisePredictor(out_channels)
         
+        # define conv layer to concatenate roi_out and roi_out_noise
+        self.conv1 = nn.Conv2d(out_channels*2, out_channels, kernel_size=1, padding=0)
+        
         self.out_channels = out_channels
         
     def forward(self, feature_map, proposals_list, gt_classes=None):
@@ -194,48 +198,56 @@ class ClassificationModule(nn.Module):
         
         roi_out = self.avg_pool(roi_out)
         
-        # flatten the output
-        roi_out = roi_out.squeeze(-1).squeeze(-1)
-
         # numbers of RoI
         nb_roi = roi_out.size(dim=0)
-
-        # We initialize the array which will contain all the variances of the RoI's
-        variance = []
-
-        for roi in range(nb_roi):
-            variance.append(self.noise_predictor(roi_out))
-            
-            # generate noise
-            noise = np.random.normal(loc=0, scale=variance[roi], size=np.shape(roi_out[0].size))
-            noise = torch.from_numpy(noise).cuda()
         
-        # add noise to roi_out
-        roi_out_noise = roi_out + noise
+
+        # Initialize roi_out_noise
+        roi_out_noise = torch.zeros_like(roi_out).cuda()
+
+        # for loop that go through each roi in the mini-batch
+        for roi in range(nb_roi):
+            # generate noise
+            noise_scale = np.abs(self.noise_predictor(roi_out[roi]).cpu().detach().numpy())
+            noise = np.random.normal(loc=0, scale=noise_scale[0], size=roi_out[roi].cpu().shape)
+
+            noise = torch.from_numpy(noise).cuda()
+            
+            # Update roi_out_noise
+            roi_out_noise[roi] = roi_out[roi] + noise
+            
         
         # Concatenate roi_out with roi_out_noise along the channel dimension
         concatenated_roi_out = torch.cat([roi_out, roi_out_noise], dim=1)
+        concatenated_roi_out = self.conv1(concatenated_roi_out)
+        
+        concatenated_roi_out = concatenated_roi_out.squeeze(-1).squeeze(-1)
         
         # pass the concatenated output through the hidden network
         out_noise = self.fc(concatenated_roi_out)
         out_noise = F.relu(self.dropout(out_noise))
         cls_score_noise = self.cls_head(out_noise)
-    
+
+        
         # pass the output through the hidden network
+        roi_out = roi_out.squeeze(-1).squeeze(-1)
         out = self.fc(roi_out)
         out = F.relu(self.dropout(out))
         
         # get the classification scores
         cls_scores = self.cls_head(out)
         
+        # compute KL divergence loss between cls_scores (original examples) and cls_score_noise (adversarial examples)
+        kl_div_loss = F.kl_div(F.softmax(cls_scores, dim=-1), F.softmax(cls_score_noise, dim=-1), reduction='batchmean')
+        
         if mode == 'eval':
-            return cls_scores + cls_score_noise
+            return cls_score_noise
         
         # compute cross entropy loss
-        cls_loss = F.cross_entropy(cls_scores, gt_classes.long())
+        # cls_loss = F.cross_entropy(cls_scores, gt_classes.long())
         cls_loss_noise = F.cross_entropy(cls_score_noise, gt_classes.long())
         
-        return cls_loss + cls_loss_noise
+        return cls_loss_noise + kl_div_loss
     
 class TwoStageDetector(nn.Module):
     def __init__(self, img_size, out_size, out_channels, n_classes, roi_size):
