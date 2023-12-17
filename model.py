@@ -241,7 +241,7 @@ class ClassificationModule(nn.Module):
         kl_div_loss = F.kl_div(F.softmax(cls_scores, dim=-1), F.softmax(cls_score_noise, dim=-1), reduction='batchmean')
         
         if mode == 'eval':
-            return cls_score_noise
+            return cls_score_noise + kl_div_loss
         
         # compute cross entropy loss
         # cls_loss = F.cross_entropy(cls_scores, gt_classes.long())
