@@ -69,7 +69,7 @@ out_c, out_h, out_w = out.size(dim=1), out.size(dim=2), out.size(dim=3)
 img_size = (img_height, img_width)
 out_size = (out_h, out_w)
 n_classes = len(name2idx) - 1 # exclude pad idx
-roi_size = (2, 2)
+roi_size = (7, 7)
 
 detector = TwoStageDetector(img_size, out_size, out_c, n_classes, roi_size).to(device)
 

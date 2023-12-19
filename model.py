@@ -4,7 +4,11 @@ from torchvision import ops
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.nn as nn
-import cv2
+from PIL import Image
+import torchvision.transforms as T
+from torchvision.utils import save_image
+
+
 
 from utils import *
 
@@ -184,6 +188,9 @@ class ClassificationModule(nn.Module):
         # define conv layer to concatenate roi_out and roi_out_noise
         self.conv1 = nn.Conv2d(out_channels*2, out_channels, kernel_size=1, padding=0)
         
+        # define conv layer to concatenate roi_out and roi_out_noise
+        self.conv2 = nn.Conv2d(out_channels, 3, kernel_size=1, padding=0)
+        
         self.out_channels = out_channels
         
     def forward(self, feature_map, proposals_list, gt_classes=None):
@@ -196,7 +203,9 @@ class ClassificationModule(nn.Module):
         # apply roi pooling on proposals followed by avg pooling
         roi_out = ops.roi_pool(feature_map, proposals_list, self.roi_size)
         
-        roi_out = self.avg_pool(roi_out)
+        
+        # roi_out = self.avg_pool(roi_out)
+        
         # [22, 2048, 1, 1]
         # numbers of RoI
         nb_roi = roi_out.size(dim=0)
@@ -223,7 +232,16 @@ class ClassificationModule(nn.Module):
         concatenated_roi_out = torch.cat([roi_out, roi_out_noise], dim=1)
         concatenated_roi_out = self.conv1(concatenated_roi_out)
         
+        
+        
+        save_image(self.conv2(concatenated_roi_out[0]).cpu(), 'images_bruit/concatenated_roi_out.png')
+        
+        save_image(self.conv2(roi_out[0]).cpu(), 'images_bruit/roi_out.png')
+        
+        
+        concatenated_roi_out = self.avg_pool(concatenated_roi_out)
         concatenated_roi_out = concatenated_roi_out.squeeze(-1).squeeze(-1)
+        
         
         # pass the concatenated output through the hidden network
         out_noise = self.fc(concatenated_roi_out)
@@ -232,6 +250,7 @@ class ClassificationModule(nn.Module):
 
         
         # pass the output through the hidden network
+        roi_out = self.avg_pool(roi_out)
         roi_out = roi_out.squeeze(-1).squeeze(-1)
         out = self.fc(roi_out)
         out = F.relu(self.dropout(out))
