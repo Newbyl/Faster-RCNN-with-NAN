@@ -12,7 +12,7 @@ from utils import *
 class NoisePredictor(nn.Module):
     def __init__(self, roi_size=2048, hidden_dim=512):
         super().__init__()
-        self.conv1 = nn.Conv2d(roi_size, hidden_dim, kernel_size=1, padding=0)
+        self.conv1 = nn.Conv2d(roi_size, hidden_dim, kernel_size=4, padding=0)
         self.fc1 = nn.Linear(hidden_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, 1)
         
@@ -197,14 +197,16 @@ class ClassificationModule(nn.Module):
         roi_out = ops.roi_pool(feature_map, proposals_list, self.roi_size)
         
         roi_out = self.avg_pool(roi_out)
-        
+        # [22, 2048, 1, 1]
         # numbers of RoI
         nb_roi = roi_out.size(dim=0)
         
 
         # Initialize roi_out_noise
         roi_out_noise = torch.zeros_like(roi_out).cuda()
-
+        
+        
+        
         # for loop that go through each roi in the mini-batch
         for roi in range(nb_roi):
             # generate noise
@@ -244,11 +246,11 @@ class ClassificationModule(nn.Module):
             return cls_score_noise + kl_div_loss
         
         # compute cross entropy loss
-        # cls_loss = F.cross_entropy(cls_scores, gt_classes.long())
+        cls_loss = F.cross_entropy(cls_scores, gt_classes.long())
         cls_loss_noise = F.cross_entropy(cls_score_noise, gt_classes.long())
         
-        return cls_loss_noise + kl_div_loss
-    
+        return cls_loss_noise + kl_div_loss + cls_loss
+
 class TwoStageDetector(nn.Module):
     def __init__(self, img_size, out_size, out_channels, n_classes, roi_size):
         super().__init__() 
