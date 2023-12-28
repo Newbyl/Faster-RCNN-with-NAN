@@ -234,7 +234,7 @@ class ClassificationModule(nn.Module):
         
         
         
-        save_image(self.conv2(concatenated_roi_out[0]).cpu(), 'images_bruit/concatenated_roi_out.png')
+        save_image(self.conv2(roi_out_noise[0]).cpu(), 'images_bruit/concatenated_roi_out.png')
         
         save_image(self.conv2(roi_out[0]).cpu(), 'images_bruit/roi_out.png')
         
