@@ -55,6 +55,7 @@ class ObjectDetectionDataset(Dataset):
 
             # read and resize image
             img = io.imread(img_path)
+            print("image numéro : " + str(i))
             img = resize(img, self.img_size)
 
             # convert image to torch tensor and reshape it so channels come first

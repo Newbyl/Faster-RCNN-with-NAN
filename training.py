@@ -22,11 +22,11 @@ img_width = 640
 img_height = 480
 annotation_path = "dataset/annotations.xml"
 image_dir = os.path.join("dataset", "images")
-# name2idx = {'pad': -1, 'camel': 0, 'bird': 1}
+#name2idx = {'pad': -1, 'camel': 0, 'bird': 1}
 name2idx = {'pad':-1, 'starfish': 0, 'holothurian': 1, 'scallop': 2,'echinus': 3}
 idx2name = {v:k for k, v in name2idx.items()}
 
-batch_size = 2
+batch_size = 20
 
 od_dataset = ObjectDetectionDataset(annotation_path, image_dir, (img_height, img_width), name2idx)
 
