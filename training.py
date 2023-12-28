@@ -2,7 +2,6 @@ import numpy as np
 from skimage import io
 from skimage.transform import resize
 import matplotlib.pyplot as plt
-import random
 import matplotlib.patches as patches
 from utils import *
 from model import *
@@ -21,16 +20,17 @@ from dataset import ObjectDetectionDataset
 
 img_width = 640
 img_height = 480
-annotation_path = "data/annotations.xml"
-image_dir = os.path.join("data", "images")
-name2idx = {'pad': -1, 'camel': 0, 'bird': 1}
+annotation_path = "dataset/annotations.xml"
+image_dir = os.path.join("dataset", "images")
+# name2idx = {'pad': -1, 'camel': 0, 'bird': 1}
+name2idx = {'pad':-1, 'starfish': 0, 'holothurian': 1, 'scallop': 2,'echinus': 3}
 idx2name = {v:k for k, v in name2idx.items()}
 
 batch_size = 2
 
 od_dataset = ObjectDetectionDataset(annotation_path, image_dir, (img_height, img_width), name2idx)
 
-od_dataloader = DataLoader(od_dataset, batch_size=2)
+od_dataloader = DataLoader(od_dataset, batch_size=batch_size)
 
 for img_batch, gt_bboxes_batch, gt_classes_batch in od_dataloader:
     img_data_all = img_batch
@@ -73,13 +73,6 @@ roi_size = (7, 7)
 
 detector = TwoStageDetector(img_size, out_size, out_c, n_classes, roi_size).to(device)
 
-detector.eval()
-total_loss = detector(img_batch, gt_bboxes_batch, gt_classes_batch)
-proposals_final, conf_scores_final, classes_final = detector.inference(img_batch)
-
-
-
-
 
 def training_loop(model, learning_rate, train_dataloader, n_epochs):
 
@@ -107,9 +100,9 @@ def training_loop(model, learning_rate, train_dataloader, n_epochs):
     return loss_list
 
 learning_rate = 1e-3
-n_epochs = 1000
+n_epochs = 200
 
 
 if __name__ == "__main__" :
     loss_list = training_loop(detector, learning_rate, od_dataloader, n_epochs)
-    torch.save(detector.state_dict(), "model.pt")
+    torch.save(detector.state_dict(), "weights/weights_NAN.pt")
